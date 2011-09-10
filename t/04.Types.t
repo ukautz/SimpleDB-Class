@@ -1,5 +1,6 @@
 use Test::More tests => 48;
-use lib '../lib';
+use FindBin qw/ $Bin /;
+use lib "$Bin/../lib";
 use DateTime;
 use DateTime::Format::Strptime;
 

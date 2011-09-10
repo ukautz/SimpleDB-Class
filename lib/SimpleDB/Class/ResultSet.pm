@@ -18,7 +18,7 @@ The following methods are available from this class.
 
 =cut
 
-use Moose;
+use Any::Moose;
 use SimpleDB::Class::SQL;
 
 #--------------------------------------------------------
@@ -517,5 +517,5 @@ SimpleDB::Class is Copyright 2009-2010 Plain Black Corporation (L<http://www.pla
 
 =cut
 
-no Moose;
+no Any::Moose;
 __PACKAGE__->meta->make_immutable;

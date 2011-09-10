@@ -14,7 +14,7 @@ The following methods are available from this class.
 
 =cut
 
-use Moose;
+use Any::Moose;
 use UUID::Tiny;
 use SimpleDB::Class::Types ':all';
 use Sub::Name ();

@@ -8,7 +8,7 @@ SimpleDB::Class - An Object Relational Mapper (ORM) for the Amazon SimpleDB serv
 
  package Library;
 
- use Moose;
+ use Any::Moose;
  extends 'SimpleDB::Class';
  
  __PACKAGE__->load_namespaces();
@@ -17,7 +17,7 @@ SimpleDB::Class - An Object Relational Mapper (ORM) for the Amazon SimpleDB serv
 
  package Library::Book;
 
- use Moose;
+ use Any::Moose;
  extends 'SimpleDB::Class::Item';
 
  __PACKAGE__->set_domain_name('book');
@@ -35,7 +35,7 @@ SimpleDB::Class - An Object Relational Mapper (ORM) for the Amazon SimpleDB serv
 
  package Library::Publisher;
 
- use Moose;
+ use Any::Moose;
  extends 'SimpleDB::Class::Item';
 
  __PACKAGE__->set_domain_name('publisher');
@@ -50,7 +50,12 @@ SimpleDB::Class - An Object Relational Mapper (ORM) for the Amazon SimpleDB serv
  use Library;
  use DateTime;
 
- my $library = Library->new(access_key => 'xxx', secret_key => 'yyy', cache_servers=>\@servers );
+ my $library = Library->new(
+     access_key => 'xxx',
+     secret_key => 'yyy',
+     cache_type => 'Dummy',
+     cache_args => { active => 1 }
+ );
   
  my $specific_book = $library->domain('book')->find('id goes here');
 
@@ -134,12 +139,14 @@ The following methods are available from this class.
 
 =cut
 
-use Moose;
+use Any::Moose;
 use MooseX::ClassAttribute;
 use SimpleDB::Class::Cache;
 use SimpleDB::Client;
 use SimpleDB::Class::Domain;
 use Module::Find;
+
+use version 0.74; our $VERSION = qv( "1.0503_1" );
 
 #--------------------------------------------------------
 
@@ -191,15 +198,28 @@ sub load_namespaces {
 
 #--------------------------------------------------------
 
-=head2 cache_servers ( )
+=head2 cache_type ( )
 
-Returns the cache server array reference passed into the constructor.
+Type of the cache, allowed is any SimpleDB::Class::Cache::<type>
 
 =cut
 
-has cache_servers => (
+has cache_type => (
     is          => 'ro',
     required    => 1,
+    isa         => 'Str'
+);
+
+=head2 cache_args ( )
+
+Args for setup a new cache, as in SimpleDB::Class::Cache->instance( $type => $args )
+
+=cut
+
+has cache_args => (
+    is          => 'ro',
+    required    => 1,
+    isa         => 'HashRef'
 );
 
 #--------------------------------------------------------
@@ -215,7 +235,7 @@ has cache => (
     lazy    => 1,
     default => sub {
         my $self = shift;
-        return SimpleDB::Class::Cache->new(servers=>$self->cache_servers);
+        return SimpleDB::Class::Cache->instance( $self->cache_type => $self->cache_args );
     },
 );
 
@@ -445,5 +465,5 @@ SimpleDB::Class is Copyright 2009-2010 Plain Black Corporation (L<http://www.pla
 
 =cut
 
-no Moose;
+no Any::Moose;
 __PACKAGE__->meta->make_immutable;

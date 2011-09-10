@@ -1,6 +1,6 @@
 package SimpleDB::Class::Role::Itemized;
 
-use Moose::Role;
+use Any::Moose "Role";
 use SimpleDB::Class::Types ':all';
 
 requires 'item_class';

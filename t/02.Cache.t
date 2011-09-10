@@ -1,6 +1,7 @@
 use Test::More tests => 5;
 use Test::Deep;
-use lib '../lib';
+use FindBin qw/ $Bin /;
+use lib "$Bin/../lib";
 
 use_ok( 'SimpleDB::Class::Cache' );
 my $servers = [

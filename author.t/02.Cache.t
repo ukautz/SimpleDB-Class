@@ -7,8 +7,24 @@ my $a = {foo=>'A'};
 my $b = {foo=>'B'};
 
 use_ok('SimpleDB::Class::Cache');
-my $cache = SimpleDB::Class::Cache->new(servers=>[{host=>'127.0.0.1',port=>11211}]);
-isa_ok($cache, 'SimpleDB::Class::Cache');
+#my $cache = SimpleDB::Class::Cache->new( servers=>[{host=>'127.0.0.1',port=>11211}]);
+my $cache = $ENV{ MEMCACHE_SERVER }
+    ? do {
+        my ( $server, $port ) = $ENV{ MEMCACHE_SERVER } =~ /^(.+?):(\d+)$/;
+        $server ||= $ENV{ MEMCACHE_SERVER };
+        $port ||= 11211;
+        SimpleDB::Class::Cache->instance( 'Memcached' => {
+            servers => [ {
+                host => $server,
+                port => $port
+            } ]
+        } );
+    }
+    : ( $ENV{ FASTMMAP_FILE }
+        ? SimpleDB::Class::Cache->instance( 'FastMmap' => { unlink_on_exit => 1 } )
+        : SimpleDB::Class::Cache->instance( 'Dummy' => { active => 1 } )
+    );
+ok($cache && eval { $cache->does( 'SimpleDB::Class::Cache' ); 1 }, 'Cache Class' );
 $cache->set('foo',"a",$a);
 is($cache->get('foo',"a")->{foo}, "A", "set/get");
 $cache->set('foo',"b", $b);

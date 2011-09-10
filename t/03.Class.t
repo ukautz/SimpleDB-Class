@@ -1,15 +1,16 @@
 use Test::More tests => 20;
 use Test::Deep;
-use lib '../lib';
+use FindBin qw/ $Bin /;
+use lib "$Bin/../lib";
 
 use_ok( 'SimpleDB::Class::Exception');
 use_ok( 'SimpleDB::Class' );
 diag( "Testing SimpleDB::Class $SimpleDB::Class::VERSION" );
 
-my $db = SimpleDB::Class->new(secret_key=>'secretxx', access_key=>'accessyy', cache_servers=>[{'socket' => '/tmp/foo/bar'}]);
+my $db = SimpleDB::Class->new(secret_key=>'secretxx', access_key=>'accessyy', cache_type => 'Dummy', cache_args => { active => 1 } );
 
 isa_ok($db, 'SimpleDB::Class');
-isa_ok($db->cache, 'SimpleDB::Class::Cache');
+ok( $db->cache && eval { $db->cache->does( 'SimpleDB::Class::Cache' ); 1 }, "use SimpleDB::Class::Cache" );
 
 use_ok( 'SimpleDB::Class::SQL');
 use_ok( 'SimpleDB::Class::ResultSet');

@@ -1,3 +1,10 @@
+1.0503_1 2011-09-10 / ukautz
+ - Wrote cache abstraction so other caches besides memcached can be used
+ - Switched to Any::Moose to be able to use Mouse instead (smaller memory footprint, faster startup)
+ - Added Makefile.PL and META.yml from CPAN, removed dependencies on Memcached::libmemcached
+ - Added documentation
+ - Rewrote tests according to new cache behavior
+
 1.0503 2010-  -
  - Fixed a documentation bug.
 
