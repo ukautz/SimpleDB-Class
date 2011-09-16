@@ -14,7 +14,7 @@ The following methods are available from this class.
 
 =cut
 
-use Any::Moose;
+use Moose;
 use SimpleDB::Class::SQL;
 use SimpleDB::Class::ResultSet;
 use SimpleDB::Class::Exception;
@@ -114,6 +114,20 @@ has simpledb => (
 
 #--------------------------------------------------------
 
+
+=head2 prefixed_name
+
+Retursn the name with prefix
+
+=cut
+
+sub prefixed_name {
+    my ( $self ) = @_;
+    return $self->simpledb->add_domain_prefix( $self->name );
+}
+
+#--------------------------------------------------------
+
 =head2 create  ( )
 
 Creates this domain in the SimpleDB.
@@ -123,9 +137,28 @@ Creates this domain in the SimpleDB.
 sub create {
     my ($self) = @_;
     my $db = $self->simpledb;
-    $db->http->send_request('CreateDomain', {
-        DomainName => $db->add_domain_prefix($self->name)
+    my $res = $db->http->send_request('CreateDomain', {
+        DomainName => $self->prefixed_name
     });
+    if ( $db->auto_create_domain ) {
+        $self->exists();
+    }
+    return $res;
+}
+
+=head2 exists
+
+Returns bool whether domain exists or not
+
+=cut
+
+sub exists {
+    my ( $self ) = @_;
+    my $res = $self->simpledb->http->send_request( 'DomainMetadata' => { DomainName => $self->prefixed_name } );
+    my $exist = defined $res && ref $res && defined $res->{ DomainMetadataResult }
+        && ref $res->{ DomainMetadataResult } && defined $res->{ DomainMetadataResult }->{ ItemCount };
+    $self->simpledb->domain_exists( $self->name, $exist ? 1 : -1 );
+    return $exist;
 }
 
 #--------------------------------------------------------
@@ -139,9 +172,11 @@ Deletes this domain from the SimpleDB.
 sub delete {
     my ($self) = @_;
     my $db = $self->simpledb;
-    $db->http->send_request('DeleteDomain', {
+    my $r = $db->http->send_request('DeleteDomain', {
         DomainName => $db->add_domain_prefix($self->name),
     });
+    $self->simpledb->domain_exists( $self->name, -1 );
+    return $r;
 }
 
 #--------------------------------------------------------
@@ -188,9 +223,12 @@ sub find {
             $params{ConsistentRead} = 'true';
         }
         my $result = $db->http->send_request('GetAttributes', \%params);
-        $item = $self->parse_item($id, $result->{GetAttributesResult}{Attribute});
-        if (defined $item) {
-            $cache->set($name, $id, $item->to_hashref);
+        if ( $result && $result->{GetAttributesResult} && ref($result->{GetAttributesResult})
+            && $result->{GetAttributesResult}{Attribute} ) {
+            $item = $self->parse_item($id, $result->{GetAttributesResult}{Attribute});
+            if (defined $item) {
+                $cache->set($name, $id, $item->to_hashref);
+            }
         }
     }
     elsif (my $e = SimpleDB::Class::Exception->caught) {
@@ -212,6 +250,7 @@ sub find {
 
     return $item;
 }
+
 
 #--------------------------------------------------------
 
@@ -479,5 +518,5 @@ SimpleDB::Class is Copyright 2009-2010 Plain Black Corporation (L<http://www.pla
 
 =cut
 
-no Any::Moose;
+no Moose;
 __PACKAGE__->meta->make_immutable;

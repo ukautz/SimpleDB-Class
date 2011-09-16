@@ -28,10 +28,12 @@ Uses L<Cache::FastMMap> as underlying cache. Fast enough, persistent (optional),
 
 =cut
 
-use Any::Moose;
+use Moose;
 with qw/ SimpleDB::Class::Cache /;
 
 use Cache::FastMmap;
+use Storable;
+use Clone;
 
 has fastmmap => ( isa => 'Cache::FastMmap', is => 'ro' );
 
@@ -66,8 +68,7 @@ Setup the L<Cache::Memory> instance
 
 sub init_cache {
     my ( $self ) = @_;
-    use Data::Dumper; print Dumper( $self->args );
-    $self->{ fastmmap } = Cache::FastMmap->new( %{ $self->args } );
+    $self->{ fastmmap } = Cache::FastMmap->new( %{ $self->args }, raw_values => 1 );
 }
 
 #-------------------------------------------------------------------
@@ -95,6 +96,7 @@ sub flush {
 sub get {
     my ( $self, $key ) = @_;
     if ( my $content = $self->fastmmap->get( $key ) ) {
+        $content = Storable::thaw( $content );
         return $content if ref $content;
         SimpleDB::Class::Exception::InvalidObject->throw(
             error   => "Couldn't thaw value for $key."
@@ -115,6 +117,7 @@ sub mget {
     my @values;
     foreach my $key ( @$keys_ref ) {
         if ( my $content = $self->fastmmap->get( $key ) ) {
+            $content = Storable::thaw( $content );
             unless (ref $content) {
                 SimpleDB::Class::Exception::InvalidObject->throw(
                     id      => $key,
@@ -139,7 +142,7 @@ sub set {
     if ( $ttl && $ttl =~ /^[0-9]+$/ ) {
         $ttl = "${ttl}s";
     }
-    $self->fastmmap->set( $key, $value, $ttl );
+    $self->fastmmap->set( $key, Storable::nfreeze( $value ), $ttl );
     return ;
 }
 
@@ -182,6 +185,6 @@ SimpleDB::Class is Copyright 2009-2010 Plain Black Corporation (L<http://www.pla
 =cut
 
 
-no Any::Moose;
+no Moose;
 __PACKAGE__->meta->make_immutable;
 

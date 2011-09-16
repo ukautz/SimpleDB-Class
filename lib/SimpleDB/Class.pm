@@ -8,7 +8,7 @@ SimpleDB::Class - An Object Relational Mapper (ORM) for the Amazon SimpleDB serv
 
  package Library;
 
- use Any::Moose;
+ use Moose;
  extends 'SimpleDB::Class';
  
  __PACKAGE__->load_namespaces();
@@ -17,7 +17,7 @@ SimpleDB::Class - An Object Relational Mapper (ORM) for the Amazon SimpleDB serv
 
  package Library::Book;
 
- use Any::Moose;
+ use Moose;
  extends 'SimpleDB::Class::Item';
 
  __PACKAGE__->set_domain_name('book');
@@ -35,7 +35,7 @@ SimpleDB::Class - An Object Relational Mapper (ORM) for the Amazon SimpleDB serv
 
  package Library::Publisher;
 
- use Any::Moose;
+ use Moose;
  extends 'SimpleDB::Class::Item';
 
  __PACKAGE__->set_domain_name('publisher');
@@ -139,7 +139,7 @@ The following methods are available from this class.
 
 =cut
 
-use Any::Moose;
+use Moose;
 use MooseX::ClassAttribute;
 use SimpleDB::Class::Cache;
 use SimpleDB::Client;
@@ -361,6 +361,44 @@ class_has 'domain_names' => (
 
 #--------------------------------------------------------
 
+=head2 auto_create_domain ( )
+
+Whether auto-creating of domains shall be done or not.
+
+=head2 clear_domain_exist_cache
+
+Clears all information about which domains exist and which don't.
+
+=cut
+
+has 'auto_create_domain' => (
+    is      => 'rw',
+    isa     => 'Bool',
+    default => 0
+);
+
+
+# keep track of already created domains
+has '_domain_created' => (
+    is      => 'rw',
+    isa     => 'HashRef[Bool]',
+    default => sub {{}},
+    clearer => 'clear_domain_exist_cache'
+);
+
+# keep track of listing-check for not creating existing ones
+has '_domain_created_check' => (
+    is      => 'rw',
+    isa     => 'Bool',
+    default => 0
+);
+
+
+
+
+
+#--------------------------------------------------------
+
 =head2 domain ( moniker )
 
 Returns an instanciated L<SimpleDB::Class::Domain> based upon its L<SimpleDB::Class::Item> classname or its domain name.
@@ -376,6 +414,11 @@ sub domain {
     my $class = $self->domain_names->{$moniker};
     $class ||= $moniker;
     my $d = SimpleDB::Class::Domain->new(simpledb=>$self, item_class=>$class);
+    
+    # do auto create ?
+    if ( $self->auto_create_domain && ! $self->domain_exists( $d->name ) ) {
+        $d->create();
+    }
     return $d;
 }
 
@@ -390,11 +433,61 @@ Retrieves the list of domain names from your SimpleDB account and returns them a
 sub list_domains {
     my ($self) = @_;
     my $result = $self->http->send_request('ListDomains');
+    return [] unless $result && ref $result && ref $result->{ListDomainsResult} && $result->{ListDomainsResult}{DomainName};
     my $domains = $result->{ListDomainsResult}{DomainName};
     unless (ref $domains eq 'ARRAY') {
         $domains = [$domains];
     }
+    
+    # remember seen domains (for optimize auto create)
+    my $prefix = $self->has_domain_prefix && $self->domain_prefix;
+    my $lprefix = length( $prefix );
+    $self->_domain_created_check( 1 );
+    $self->domain_exists( $_, 1 ) for map {
+        substr( $_, $lprefix, length($_)-$lprefix );
+    } grep { ! $prefix || index( $_, $prefix ) == 0 } @$domains;
+    
+    # return domains
     return $domains;
+}
+
+=head2 domain_exists ( domain, action )
+
+Either check whether a domain exist (in terms of: is created) or set/remove exist status
+
+=head3 domain
+
+Name of the domain, without prefix
+
+=head3 action
+
+Leave empty for check, use 1 for set and -1 for remove
+
+=cut
+
+sub domain_exists {
+    my ( $self, $domain, $action ) = @_;
+    
+    # read domains now
+    $self->list_domains()
+        unless $self->_domain_created_check;
+    
+    # no action -> return whether we think it exists
+    $self->_domain_created || $self->_domain_created( {} );
+    return defined $self->_domain_created->{ $domain }
+        unless $action;
+    
+    # add to list (eg after create)
+    if ( $action > 0 ) {
+        $self->_domain_created->{ $domain } = 1;
+    }
+    
+    # remove from list (eg after delete)
+    else {
+        delete $self->_domain_created->{ $domain };
+    }
+    
+    return defined $self->_domain_created->{ $domain };
 }
 
 =head1 PREREQS
@@ -465,5 +558,5 @@ SimpleDB::Class is Copyright 2009-2010 Plain Black Corporation (L<http://www.pla
 
 =cut
 
-no Any::Moose;
+no Moose;
 __PACKAGE__->meta->make_immutable;

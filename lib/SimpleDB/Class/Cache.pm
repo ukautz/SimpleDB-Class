@@ -26,7 +26,7 @@ An API that allows you to cache item data to a memcached server. Technically I s
 
 =cut
 
-use Any::Moose "Role";
+use Moose::Role;
 use SimpleDB::Class::Exception;
 use Memcached::libmemcached;
 use Storable ();
@@ -36,6 +36,7 @@ Params::Validate::validation_options( on_fail => sub {
         warn "Error in Cache params: ".$error; 
         SimpleDB::Class::Exception::InvalidParam->throw( error => $error );
         } );
+use Scalar::Util qw/ blessed /;
 
 requires qw/ get mget set delete flush /;
 
@@ -277,7 +278,7 @@ SimpleDB::Class is Copyright 2009-2010 Plain Black Corporation (L<http://www.pla
 =cut
 
 
-# no Any::Moose;
+# no Moose;
 # __PACKAGE__->meta->make_immutable;
 
 1;

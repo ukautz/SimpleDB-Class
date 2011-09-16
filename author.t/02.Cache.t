@@ -21,7 +21,7 @@ my $cache = $ENV{ MEMCACHE_SERVER }
         } );
     }
     : ( $ENV{ FASTMMAP_FILE }
-        ? SimpleDB::Class::Cache->instance( 'FastMmap' => { unlink_on_exit => 1 } )
+        ? SimpleDB::Class::Cache->instance( 'FastMmap' => { unlink_on_exit => 1g } )
         : SimpleDB::Class::Cache->instance( 'Dummy' => { active => 1 } )
     );
 ok($cache && eval { $cache->does( 'SimpleDB::Class::Cache' ); 1 }, 'Cache Class' );

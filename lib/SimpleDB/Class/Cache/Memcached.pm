@@ -26,7 +26,7 @@ An API that allows you to cache item data to a memcached server. Technically I s
 
 =cut
 
-use Any::Moose;
+use Moose;
 with qw/ SimpleDB::Class::Cache /;
 
 use SimpleDB::Class::Exception;
@@ -424,6 +424,6 @@ SimpleDB::Class is Copyright 2009-2010 Plain Black Corporation (L<http://www.pla
 =cut
 
 
-no Any::Moose;
+no Moose;
 __PACKAGE__->meta->make_immutable;
 

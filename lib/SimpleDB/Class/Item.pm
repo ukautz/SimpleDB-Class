@@ -14,10 +14,14 @@ The following methods are available from this class.
 
 =cut
 
-use Any::Moose;
+use Moose;
 use UUID::Tiny;
 use SimpleDB::Class::Types ':all';
 use Sub::Name ();
+use Carp qw/ carp /;
+
+# with qw/ SimpleDB::Class::Role::ItemBase /;
+extends qw/ SimpleDB::Class::ItemExtendable /;
 
 #--------------------------------------------------------
 sub _install_sub {
@@ -52,6 +56,46 @@ sub set_domain_name {
     SimpleDB::Class->domain_names($names);
 }
 
+=head2 set_domain_pk
+
+Set an alternative primary key, do not use the default UUID generation. Caution: You have to take care of uniqueness yourself..
+
+    # assuming this
+    __PACKAGE__->add_attributes(
+        name => { isa => 'Str', is => 'rw', required => 1 },
+        type => { isa => 'Str', is => 'rw', required => 1 },
+    );
+    
+    # build unique key of name and type
+    __PACKAGE__->set_domain_pk( qw/ name type / );
+    
+    # use a method to build pk
+    __PACKAGE__->set_domain_pk( sub {
+        my ( $self ) = @_;
+        return map { my $s = lc( $self->$_() ); $s =~ s/[a-z0-9]//gms; $s } qw/ name type /;
+    } );
+
+=cut
+
+sub set_domain_pk {
+    my ( $class, @keys ) = @_;
+    carp "Missing keys in set_domain_pk"
+        unless @keys;
+    
+    # use method
+    if ( ( ref( $keys[0] ) || '' ) eq 'CodeRef' ) {
+        _install_sub( $class. '::generate_domain_pk', $keys[0] );
+    }
+    
+    # use attributes
+    else {
+        _install_sub( $class. '::generate_domain_pk', sub {
+            my ( $self ) = @_;
+            return join( '-', map { $self->$_() } @keys );
+        } );
+    }
+}
+
 #--------------------------------------------------------
 
 =head2 add_attributes ( list )
@@ -80,7 +124,7 @@ A sub reference that will be called like a method (has reference to $self), and 
 
 =cut
 
-sub add_attributes {
+sub add_attributes2 {
     my ($class, %attributes) = @_;
     my %defaults = (
         Str                 => '',
@@ -132,7 +176,9 @@ The class name of the class you're creating the child relationship with.
 
 =head3 attribute
 
-The attribute in the child class that represents this class' id.
+B<Scalar> The attribute in the child class that represents this class' id.
+
+B<ArrayRef> Our (current class) and their (other class) attributes, eg [ "id", "super_id" ] for a ( CurrentClass.id = OtherClass.super_id) relation
 
 =head3 options
 
@@ -180,9 +226,12 @@ sub has_many {
     my ($class, $name, $classname, $attribute, %options) = @_;
     _install_sub($class.'::'.$name, sub { 
         my ($self, %sub_options) = @_; 
-        my %search_options = (
-            where => {$attribute => $self->id},
-        );
+        my %search_options = ref $attribute
+            ? do {
+                my ( $ours, $theirs ) = @$attribute;
+                ( where => { $theirs => $self->$ours() } )
+            }
+            : ( where => { $attribute => $self->id} );
         if (exists $sub_options{where}) {
             $search_options{where}{'-and'} = $sub_options{where};
         }
@@ -291,12 +340,58 @@ sub belongs_to {
 
 #--------------------------------------------------------
 
-=head2 attributes ( )
+=head2 has_one ( method, class, our_attrib, their_attrib )
 
-Class method. Returns the hashref of attributes set by the add_attributes() method.
+Class method. Adds a 1:N relationship between another class and this one.
+
+=head3 method
+
+The method name to create to represent this relationship in this class. 
+
+=head3 class
+
+The class name of the parent class you're relating this class to.
+
+=head3 our_attrib
+
+The attribute on "our" side (current class)
+
+=head3 our_attrib
+
+The attribute on "their" side (the other class)
+
+=head3 options
+
+See L<SimpleDB::Class::Domain#search_(_options_)>
 
 =cut
-sub attributes { return {} };
+
+sub has_one {
+    my ($class, $name, $classname, $our_attrib, $their_attrib, %options) = @_;
+    my $clearer = 'clear_'.$name;
+    my $predicate = 'has_'.$name;
+    $class->meta->add_attribute($name, {
+        is      => 'rw',
+        lazy    => 1,
+        default => sub {
+            my $self = shift;
+            my %search = (
+                $their_attrib => $self->$our_attrib()
+            );
+            my $res = $self->simpledb->domain($classname)->search( where => \%search, %options);
+            return $res->next if $res->has_result;
+            return ;
+        },
+        predicate => $predicate,
+        clearer => $clearer,
+        });
+    $class->meta->add_after_method_modifier($our_attrib, sub {
+        my ($self, $value) = @_;
+        if (defined $value) {
+            $self->$clearer;
+        }
+    });
+}
 
 
 #--------------------------------------------------------
@@ -480,10 +575,15 @@ sub delete_attribute {
 
 Class method. Generates a unique UUID that can be used as a unique id for new items.
 
+If you set an alternative primary key via set_domain_pk, it will use this.
+
 =cut 
 
 sub generate_uuid {
-    return create_UUID_as_string(UUID_V4);
+    my ( $self ) = @_;
+    return $self->can( 'generate_domain_pk' )
+        ? $self->generate_domain_pk()
+        : create_UUID_as_string(UUID_V4);
 }
 
 #--------------------------------------------------------
@@ -642,7 +742,7 @@ sub stringify_values {
         value   => $name,
         error   => q{There is no attribute called '}.$name.q{'.},
         ) unless defined $attribute;
-    my $isa = $attribute->type_constraint;
+    my $isa = $attribute->type_constraint || '';
 
     # coerce
     # special cases for int stuff because technically ints are already strings

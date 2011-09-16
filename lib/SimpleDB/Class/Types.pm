@@ -86,14 +86,16 @@ use DateTime::Format::Strptime;
 use JSON;
 
 use MooseX::Types 
-    -declare => [qw(SdbArrayRefOfDateTime SdbDateTime
+    -declare => [qw(
+        SdbArrayRefOfDateTime SdbDateTime
         SdbArrayRefOfStr SdbStr SdbMediumStr
         SdbArrayRefOfInt SdbInt SdbIntAsStr SdbArrayRefOfIntAsStr
+        SdbBool
         SdbArrayRefOfDecimal SdbDecimal SdbDecimalAsStr SdbArrayRefOfDecimalAsStr
         SdbHashRef
     )];
 
-use MooseX::Types::Moose qw/Num Int HashRef ArrayRef Str Undef/;
+use MooseX::Types::Moose qw/Num Int Bool HashRef ArrayRef Str Undef/;
 
 ## Types
 
@@ -119,6 +121,10 @@ subtype SdbArrayRefOfDateTime,
 subtype SdbInt,
     as Int,
     where { $_ =~ m/^[-]?\d+$/ };
+    
+subtype SdbBool,
+    as Bool,
+    where { ! defined $_ ? 1 : $_ =~ m/^(?:0|1|yes|no|true|false)$/ };
 
 subtype SdbDecimal,
     as Num,
@@ -253,6 +259,20 @@ coerce SdbInt,
     from SdbArrayRefOfInt, via { $_->[0] },
     from Undef, via { 0 };
 
+coerce SdbBool,
+    from SdbStr, via { 
+        if ($_ =~ m/^(?:yes|true|1)$/) {
+            return 1;
+        }
+        else {
+            return 0;
+        }
+    },
+    from SdbInt, via { $_->[0] ? 1: 0 },
+    from SdbDecimal, via { $_->[0] ? 1: 0 },
+    from SdbArrayRefOfStr, via { to_SdbBool($_->[0]) },
+    from SdbArrayRefOfInt, via { $_->[0] },
+    from Undef, via { 0 };
 
 coerce SdbDecimal,
     from SdbStr, via {

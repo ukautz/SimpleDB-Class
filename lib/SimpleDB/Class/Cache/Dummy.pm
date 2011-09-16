@@ -26,7 +26,7 @@ See L<SimpleDB::Class::Cache>
 
 =cut
 
-use Any::Moose;
+use Moose;
 with qw/ SimpleDB::Class::Cache /;
 
 use version 0.74; our $VERSION = qv( "v0.1.0" );
@@ -140,6 +140,6 @@ SimpleDB::Class is Copyright 2009-2010 Plain Black Corporation (L<http://www.pla
 =cut
 
 
-no Any::Moose;
+no Moose;
 __PACKAGE__->meta->make_immutable;
 
